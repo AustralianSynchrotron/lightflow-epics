@@ -34,7 +34,8 @@ startup_task = PythonTask(name='startup_task',
 monitor_task = PvTriggerTask(name='monitor_task',
                              pv_name=lambda data, data_store: data_store.get('pvname'),
                              callable=pv_callback,
-                             event_trigger_time=0.1, stop_polling_rate=2)
+                             event_trigger_time=0.1, stop_polling_rate=2,
+                             skip_initial_callback=True)
 
 pv_monitor_dag.define({startup_task: monitor_task})
 

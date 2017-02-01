@@ -11,14 +11,17 @@ logger = get_logger(__name__)
 
 
 class PvTriggerAction:
+    """ Encapsulates the return value for the callback function of the PvTriggerTask.
+
+    Hosts the data
+    """
     def __init__(self, data, dags=None):
-        """ Initialise the Action object.
+        """ Initialise the PvTriggerAction object.
 
         Args:
-            data (MultiTaskData): The processed data from the task that should be passed
-                                  on to successor tasks.
-            limit (list): A list of names of all immediate successor tasks that
-                          should be executed.
+            data (MultiTaskData): Modified data that should be passed onto the
+                                  triggered dags.
+            dags (list): A list of dag names that should be started.
         """
         self.data = data
         self.dags = dags if dags is not None else []
@@ -32,6 +35,7 @@ class PvTriggerTask(BaseTask):
     """
     def __init__(self, name, pv_name, callable,
                  event_trigger_time=None, stop_polling_rate=2,
+                 skip_initial_callback=True,
                  force_run=False, propagate_skip=True):
         """
 
@@ -48,11 +52,14 @@ class PvTriggerTask(BaseTask):
             pv_name=pv_name,
             event_trigger_time=event_trigger_time,
             stop_polling_rate=stop_polling_rate,
+            skip_initial_callback=skip_initial_callback
         )
         self._callable = callable
 
     def run(self, data, data_store, signal, **kwargs):
         params = self.params.eval(data, data_store)
+
+        skipped_initial = False if params.skip_initial_callback else True
         polling_event_number = 0
         queue = deque()
 
@@ -72,10 +79,14 @@ class PvTriggerTask(BaseTask):
 
             # get all the events from the queue and call the callable
             while len(queue) > 0:
-                action = self._callable(data.copy(), data_store, **queue.pop())
-                if action is not None:
-                    for dag in action.dags:
-                        signal.run_dag(dag, data=action.data)
+                event = queue.pop()
+                if skipped_initial:
+                    action = self._callable(data.copy(), data_store, **event)
+                    if action is not None:
+                        for dag in action.dags:
+                            signal.run_dag(dag, data=action.data)
+                else:
+                    skipped_initial = True
 
         pv.clear_callbacks()
 
