@@ -35,7 +35,7 @@ class PvTriggerTask(BaseTask):
     """
     def __init__(self, name, pv_name, callable,
                  event_trigger_time=None, stop_polling_rate=2,
-                 skip_initial_callback=True,
+                 skip_initial_callback=True, *,
                  force_run=False, propagate_skip=True):
         """
 
@@ -47,7 +47,7 @@ class PvTriggerTask(BaseTask):
             force_run:
             propagate_skip:
         """
-        super().__init__(name, force_run, propagate_skip)
+        super().__init__(name, force_run=force_run, propagate_skip=propagate_skip)
         self.params = TaskParameters(
             pv_name=pv_name,
             event_trigger_time=event_trigger_time,
@@ -56,8 +56,8 @@ class PvTriggerTask(BaseTask):
         )
         self._callable = callable
 
-    def run(self, data, data_store, signal, **kwargs):
-        params = self.params.eval(data, data_store)
+    def run(self, data, store, signal, **kwargs):
+        params = self.params.eval(data, store)
 
         skipped_initial = False if params.skip_initial_callback else True
         polling_event_number = 0
@@ -81,10 +81,10 @@ class PvTriggerTask(BaseTask):
             while len(queue) > 0:
                 event = queue.pop()
                 if skipped_initial:
-                    action = self._callable(data.copy(), data_store, **event)
+                    action = self._callable(data.copy(), store, **event)
                     if action is not None:
                         for dag in action.dags:
-                            signal.run_dag(dag, data=action.data)
+                            signal.start_dag(dag, data=action.data)
                 else:
                     skipped_initial = True
 

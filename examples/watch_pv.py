@@ -9,11 +9,11 @@ arguments = Arguments([
 ])
 
 
-def startup(name, data, data_store, signal):
+def startup(name, data, store, signal):
     print('Starting the PV monitoring...')
 
 
-def pv_callback(data, data_store, pvname=None, value=None, **kwargs):
+def pv_callback(data, store, pvname=None, value=None, **kwargs):
     print('Checking PV {} with value {}'.format(pvname, value))
     if math.fabs(value - 3.0) < 2.0:
         data['pv_name'] = pvname
@@ -21,7 +21,7 @@ def pv_callback(data, data_store, pvname=None, value=None, **kwargs):
         return PvTriggerAction(data, ['pv_action_dag'])
 
 
-def pv_printout(name, data, data_store, signal):
+def pv_printout(name, data, store, signal):
     print('PV {} has value: {}'.format(data['pv_name'], data['pv_value']))
 
 
@@ -29,7 +29,7 @@ def pv_printout(name, data, data_store, signal):
 pv_monitor_dag = Dag('pv_monitor_dag')
 
 startup_task = PythonTask(name='startup_task',
-                          python_callable=startup)
+                          callable=startup)
 
 monitor_task = PvTriggerTask(name='monitor_task',
                              pv_name=lambda data, data_store: data_store.get('pvname'),
@@ -44,6 +44,6 @@ pv_monitor_dag.define({startup_task: monitor_task})
 pv_action_dag = Dag('pv_action_dag', autostart=False)
 
 printout_task = PythonTask(name='printout_task',
-                           python_callable=pv_printout)
+                           callable=pv_printout)
 
 pv_action_dag.define({printout_task: None})
