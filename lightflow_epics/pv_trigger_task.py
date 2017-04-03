@@ -74,7 +74,7 @@ class PvTriggerTask(BaseTask):
             polling_event_number += 1
             if polling_event_number > params.stop_polling_rate:
                 polling_event_number = 0
-                if signal.is_stopped():
+                if signal.is_stopped:
                     break
 
             # get all the events from the queue and call the callable
