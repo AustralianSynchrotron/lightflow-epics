@@ -10,53 +10,63 @@ from lightflow.models import BaseTask, TaskParameters
 logger = get_logger(__name__)
 
 
-class PvTriggerAction:
-    """ Encapsulates the return value for the callback function of the PvTriggerTask.
-
-    Hosts the data
-    """
-    def __init__(self, data, dags=None):
-        """ Initialise the PvTriggerAction object.
-
-        Args:
-            data (MultiTaskData): Modified data that should be passed onto the
-                                  triggered dags.
-            dags (list): A list of dag names that should be started.
-        """
-        self.data = data
-        self.dags = dags if dags is not None else []
-
-
 class PvTriggerTask(BaseTask):
-    """ Triggers the execution of a DAG upon a change in a monitored PV.
+    """ Triggers the execution of a callback function upon a change in a monitored PV.
 
-    This trigger task monitors a PV for changes. If a change occurs a provded callable
-    is executed
+    This trigger task monitors a PV for changes. If a change occurs a provided callback
+    function is executed.
     """
-    def __init__(self, name, pv_name, callable,
+    def __init__(self, name, pv_name, callback,
                  event_trigger_time=None, stop_polling_rate=2,
                  skip_initial_callback=True, *,
                  force_run=False, propagate_skip=True):
-        """
+        """ Initialize the filesystem notify trigger task.
+
+        All task parameters except the name, callback, force_run and propagate_skip
+        can either be their native type or a callable returning the native type.
 
         Args:
-            name:
-            pv_name:
-            dag_callable:
-            data_callable:
-            force_run:
-            propagate_skip:
+            name (str): The name of the task.
+            pv_name (str, callable): The name of the PV that should be monitored.
+            callback (callable): A callable object that is called when the PV changes.
+                                 The function definition is
+                                 def callback(data, store, signal, context, event)
+                                 where event is the information returned by PyEPICS for
+                                 a monitor callback event. 
+            event_trigger_time (float, None): The waiting time between events in seconds.
+                                              Set to None to turn off.
+            stop_polling_rate (float): The number of events after which a signal is sent
+                                       to the workflow to check whether the task
+                                       should be stopped.
+            skip_initial_callback (bool): Set to True to skip executing the callback
+                                          upon initialization of the PV monitoring.
+            force_run (bool): Run the task even if it is flagged to be skipped.
+            propagate_skip (bool): Propagate the skip flag to the next task.
         """
         super().__init__(name, force_run=force_run, propagate_skip=propagate_skip)
+
+        # set the tasks's parameters
         self.params = TaskParameters(
             pv_name=pv_name,
             event_trigger_time=event_trigger_time,
             stop_polling_rate=stop_polling_rate,
             skip_initial_callback=skip_initial_callback
         )
-        self._callable = callable
+        self._callback = callback
 
-    def run(self, data, store, signal, **kwargs):
+    def run(self, data, store, signal, context, **kwargs):
+        """ The main run method of the PvTriggerTask task.
+
+        Args:
+            data (MultiTaskData): The data object that has been passed from the
+                                  predecessor task.
+            store (DataStoreDocument): The persistent data store object that allows the
+                                       task to store data for access across the current
+                                       workflow run.
+            signal (TaskSignal): The signal object for tasks. It wraps the construction
+                                 and sending of signals into easy to use methods.
+            context (TaskContext): The context in which the tasks runs.
+        """
         params = self.params.eval(data, store)
 
         skipped_initial = False if params.skip_initial_callback else True
@@ -77,14 +87,12 @@ class PvTriggerTask(BaseTask):
                 if signal.is_stopped:
                     break
 
-            # get all the events from the queue and call the callable
+            # get all the events from the queue and call the callback function
             while len(queue) > 0:
                 event = queue.pop()
                 if skipped_initial:
-                    action = self._callable(data.copy(), store, **event)
-                    if action is not None:
-                        for dag in action.dags:
-                            signal.start_dag(dag, data=action.data)
+                    if self._callback is not None:
+                        self._callback(data.copy(), store, signal, context, **event)
                 else:
                     skipped_initial = True
 
@@ -92,4 +100,5 @@ class PvTriggerTask(BaseTask):
 
     @staticmethod
     def _pv_callback(queue, **kwargs):
+        """ Internal callback method for the PV monitoring. """
         queue.append(kwargs)
