@@ -5,7 +5,7 @@ from functools import partial
 
 from lightflow.queue import JobType
 from lightflow.logger import get_logger
-from lightflow.models import BaseTask, TaskParameters
+from lightflow.models import BaseTask, TaskParameters, Action
 
 
 logger = get_logger(__name__)
@@ -96,11 +96,12 @@ class PvTriggerTask(BaseTask):
                 event = queue.pop()
                 if skipped_initial:
                     if self._callback is not None:
-                        self._callback(data.copy(), store, signal, context, **event)
+                        self._callback(data, store, signal, context, **event)
                 else:
                     skipped_initial = True
 
         pv.clear_callbacks()
+        return Action(data)
 
     @staticmethod
     def _pv_callback(queue, **kwargs):
