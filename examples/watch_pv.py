@@ -7,12 +7,12 @@ within a given range.
 
 import math
 
-from lightflow.models import Arguments, Option, Dag
+from lightflow.models import Parameters, Option, Dag
 from lightflow.tasks import PythonTask
 from lightflow_epics import PvTriggerTask
 
 # the workflow requires the PV name to be supplied as an argument.
-arguments = Arguments([
+parameters = Parameters([
     Option('pvname', help='The PV to monitor', type=str)
 ])
 

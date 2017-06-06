@@ -39,7 +39,7 @@ setup(
     packages=find_packages(exclude=['tests', 'examples']),
 
     install_requires=[
-        'lightflow>=1.6.1',
+        'lightflow>=1.7.0',
         'pyepics>=3.2.6'
     ],
 
